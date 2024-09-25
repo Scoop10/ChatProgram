@@ -1,0 +1,6 @@
+Need to implement the server to server communication:
+- Server Side
+    - Need to implement multiple server port
+    - Need to store each server address and it's respective clients
+    - When a client_update comes through need to deal with this (new function)
+    - Whenever a client sends a message need to check if the client has a counter stored. If not need to add the client and its counter. Need to then verify if counter is greater
