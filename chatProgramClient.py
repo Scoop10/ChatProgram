@@ -214,8 +214,8 @@ async def updateFingerprints():
         clientFingerprint = base64.b64encode(sha256_hash).decode('utf-8')
         # Append the updated fingerprint to the list
         fingerprints.append(clientFingerprint)
-    # TEMPORARY CONFIRMATION
-    print(fingerprints)
+    # Print everyone that is online
+    print("Users who are currently online: \n", fingerprints)
 
 # This function runs as a continual process to receive messages over the server to client connection
 # The function is the main handler of all incoming messages and calls the relevant functions whenever a message is received
@@ -249,8 +249,6 @@ async def receiveMessages(websocket, stop_event):
                     for clients in server["clients"]:
                         # Append the current client onto the connectedClients list
                         connectedClients.append(RSA.import_key(clients))
-                # TEMPORARY CONFIRMATION
-                print(connectedClients)
                 # Update the fingerprints to match the current connected clients list
                 await asyncio.gather(updateFingerprints())
             # Else if the received message is signed_data
@@ -293,8 +291,11 @@ async def receiveMessages(websocket, stop_event):
                                 counters.append((senderFingerprint, senderCounter))
                             # If the fingerprint was found
                             else:
-                                if senderCounter <= counters[counterIndex][1]:
-                                    print("Counter error. Message ignored.")
+                                # If this client sent this message
+                                if counterIndex == 0:
+                                    continue
+                                # Else if there is a counter error
+                                elif senderCounter <= counters[counterIndex][1]:
                                     continue
                                 # Set the fingerprints counter to be the latest sent counter from that fingerprint
                                 counters[counterIndex] = (senderFingerprint, senderCounter)
@@ -307,10 +308,7 @@ async def receiveMessages(websocket, stop_event):
                                 await asyncio.gather(getClientList(websocket))
                                 continue
                     else:
-                        continue
-
-                    # print(responseMessage)
-                    
+                        continue                    
                 # Else if the received message is a public chat message
                 elif type == "public_chat":
                     # Get the senders fingerprint from the data
@@ -351,7 +349,8 @@ async def receiveMessages(websocket, stop_event):
                             continue
                     
                     # TEMPORARY CONFIRMATION - THIS NEEDS TO BE FORMATTED BETTER
-                    print("Public message received from: ", data["sender"])
+                    print("Public message received from: ", data["sender"], " They said: ")
+                    print(data["message"])
 
         # If an exception occurs because the server has closed it's connection
         except websockets.ConnectionClosed:
