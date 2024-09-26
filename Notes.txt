@@ -1,7 +1,25 @@
 Need to implement the server to server communication:
 - Server Side
-    - Need to implement multiple server port
+    - Need to implement multiple server port and all the server to server communication (server_hello)
+    - Implement receiving client_updates as part of this
     - Need to store each server address and it's respective clients
     - When a client_update comes through need to deal with this (new function)
+        - Just need to update the sending servers clients in the server_list
+    - Implement storing files
+    - Implement message checking before forwarding (see if they follow the specified formats)
 - Client Side
-    - Whenever a client sends a message need to check if the client has a counter stored. If not need to add the client and its counter. Need to then verify if counter is greater
+    - Implement sending a private message (encryption)
+    - Implement receiving a private message (decryption)
+    - Implement sending a file
+    - Implement signatures
+
+
+
+
+How Message Signatures Work
+The process of creating and verifying message signatures involves several key steps:
+
+Signing: The sender generates a hash (a fixed-size bit string) of the message, which is then encrypted with the sender’s private key to create the signature.
+Transmission: The original message and its signature are sent to the recipient.
+Verification: Upon receiving, the recipient decrypts the signature using the sender’s public key to retrieve the hash value. 
+The recipient then hashes the received message and compares this hash to the decrypted hash. If they match, it confirms the message integrity and sender authenticity.

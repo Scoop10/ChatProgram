@@ -90,8 +90,6 @@ async def sendToAllServers(data):
 # The general purpose of this function is to receive messages from clients and to call or perform the correct functions based on the type of message received
 # activeSocket is the current socket which the client in this async process is running on
 async def clientHandler(activeSocket):
-    # COUNTER NEEDS TO BE DEALT WITH THIS WILL BE REMOVED
-    global counter
     # Try is used so that if an exception occurs it is handled properly
     try:
         # This loop should run until an exception is encountered (such as the socket closing)
@@ -114,8 +112,6 @@ async def clientHandler(activeSocket):
                         await asyncio.gather(helloMessage(receivedData, activeSocket))
                         # SERVER SIDE CONFIRMATION
                         print("Hello message Received")
-                        ## THIS WILL BE REMOVED AS I NEED TO WORK ON THIS ##
-                        counter = data["counter"]
                         # Go back to the start of the loop and wait for the next message
                         continue
                     # If a public_chat type of message has been received
@@ -126,8 +122,10 @@ async def clientHandler(activeSocket):
                         serialisedData = json.dumps(data)
                         # Schedule the data to be broadcast to all servers
                         await asyncio.gather(sendToAllServers(serialisedData))
-                        ## THIS WILL BE REMOVED AS I NEED TO WORK ON THIS ##
-                        counter = data["counter"]
+                        ## TEMPORARY ECHO CODE ##
+                        for socket in socketList:
+                            await socket.send(serialisedData)
+                        ## END OF TEMPORARY ECHO CODE ##
                         # Go back to the start of the loop and wait for the next message
                         continue
                 # Else if the received message is a client_list_request
@@ -168,8 +166,6 @@ if __name__ == '__main__':
     port = 8765
     # Specify the host
     host = "localhost" # PC
-    ## THIS WILL BE REMOVED ONCE COUNTER STUFF IS FIGURED OUT ## 
-    counter = 0
     # SERVER SIDE CONFIRMATION
     print("Starting Server on IP: ", host, " and port: ", port)
     # Initialise empty lists for the required info to be stored:

@@ -44,8 +44,7 @@ async def sendPrivateMessage(clientKey, destSocket):
 # The function receives input from the user and broadcasts it to all clients
 # destSocket is the socket of the connected server
 async def sendPublicMessage(destSocket):
-    ## COUNTER STUFF TO BE DEALT WITH ## 
-    global counter
+    counters[0][1] += 1
 
     print("Enter message to send publicly: ")
     # Receive input from the user
@@ -58,7 +57,7 @@ async def sendPublicMessage(destSocket):
                 "sender": myFingerprint,
                 "message": message
             },
-        "counter": counter,
+        "counter": counters[0][1],
         "signature":"coming"
     }
 
@@ -66,8 +65,6 @@ async def sendPublicMessage(destSocket):
     serialisedRequest = json.dumps(request)
     # Schedule serialised request to be sent to everyone via the server
     await destSocket.send(serialisedRequest)
-    ## COUNTER STUFF TO BE DEALT WITH ## 
-    counter = counter + 1
 
 # This function is called when the user inputs "Who's online?"
 # The function sends a client_list_request message to the connected server
@@ -84,8 +81,7 @@ async def getClientList(activeSocket):
 
 # This function is called when the client to the specified server
 async def sendHelloMessage(activeSocket):
-    ## COUNTER TO BE FIXED ##
-    global counter
+    counters[0][1] += 1
     # Request packaging as per specification
     request = {
         "type":"signed_data",
@@ -93,7 +89,7 @@ async def sendHelloMessage(activeSocket):
             "type" : "hello",
             "public_key" : exportedPublicKey
         },
-        "counter": counter,
+        "counter": counters[0][1],
         "signature":"coming" # NEEDS IMPLEMENTATION
     }
 
@@ -101,8 +97,6 @@ async def sendHelloMessage(activeSocket):
     serialisedRequest = json.dumps(request)
     # Schedule serialised request to be sent to everyone via the server
     await activeSocket.send(serialisedRequest)
-    ## TO BE FIXED
-    counter = counter + 1
 
 # This function is called when the client receives a client_list message from the connected server
 # The function updates the fingerprints of all connected clients
@@ -162,26 +156,97 @@ async def receiveMessages(websocket, stop_event):
                 data = responseMessage["data"]
                 # Extract the type from the data to see what type of signed_data it is
                 type = data["type"]
+                # Extract the counter of the sender
+                senderCounter = responseMessage["counter"]
                 # If the data is a private chat
                 if type == "chat":
                     # Extract the chat from the message
-                    chat = responseMessage["chat"]
+                    chat = data["chat"]
                     # Extract the participants list
                     participantsList = chat["participants"]
-                    ## CHECK IF CLIENT HAS A FINGERPRINT STORED THAT MATCHES THE SENDER ## 
+                    # Find the fingerprint of the sender
+                    senderFingerprint = participantsList[0]
+                    # CHECK IF CLIENT HAS A FINGERPRINT STORED THAT MATCHES THE SENDER #
+                    try:
+                        # Check if the fingerprint exists in the clients fingerprints
+                        senderIndex = fingerprints.index(senderFingerprint)
 
-                    ## ADD IN THE COUNTER CHECK AND UPDATE HERE ##
+                        ## CLIENT COUNTER CHECKING ##
+                        # Initialise an iterator
+                        iterator = 0
+                        # For each entry in the counters list
+                        for fingerprint, counter in counters:
+                            # If the fingerprint exists in the counters list
+                            if fingerprint == senderFingerprint:
+                                # Set the counter index to be the current searched position
+                                counterIndex = iterator
+                                # Break the search
+                                break
+                            # If not found yet add one to the iterator
+                            iterator += 1
+                        # If the fingerprint wasn't found
+                        if iterator == len(counters):
+                            # Add the fingerprint, counter for the new client
+                            counters.append((senderFingerprint, senderCounter))
+                            # If the fingerprint was found
+                        else:
+                            if senderCounter <= counters[counterIndex][1]:
+                                print("Counter error. Message ignored.")
+                                continue
+                            # Set the fingerprints counter to be the latest sent counter from that fingerprint
+                            counters[counterIndex] = (senderFingerprint, senderCounter)
+                    # If the fingerprint doesn't exist in the clients fingerprints list
+                    except ValueError:
+                        # Print a warning that someone unknown to you is trying to contact you
+                            print("An unknown sender is trying to contact you. There message has been dismissed as this may be unsafe. ")
+                            await asyncio.gather(getClientList(websocket))
+                            continue
 
                     ## ADD IN THE DECRYPTION CODE HERE ##
+
+                    print(responseMessage)
                     
                 # Else if the received message is a public chat message
                 elif type == "public_chat":
-                    ## CHECK IF CLIENT HAS A FINGERPRINT STORED THAT MATCHES THE SENDER ## 
+                    # Get the senders fingerprint from the data
+                    senderFingerprint = data["sender"]
+                    # CHECK IF CLIENT HAS A FINGERPRINT STORED THAT MATCHES THE SENDER #
+                    try:
+                        # Check if the fingerprint exists in the clients fingerprints
+                        senderIndex = fingerprints.index(senderFingerprint)
+
+                        ## CLIENT COUNTER CHECKING ##
+                        # Initialise an iterator
+                        iterator = 0
+                        # For each entry in the counters list
+                        for fingerprint, counter in counters:
+                            # If the fingerprint exists in the counters list
+                            if fingerprint == senderFingerprint:
+                                # Set the counter index to be the current searched position
+                                counterIndex = iterator
+                                # Break the search
+                                break
+                            # If not found yet add one to the iterator
+                            iterator += 1
+                        # If the fingerprint wasn't found
+                        if iterator == len(counters):
+                            # Add the fingerprint, counter for the new client
+                            counters.append((senderFingerprint, senderCounter))
+                            # If the fingerprint was found
+                        else:
+                            if senderCounter <= counters[counterIndex][1]:
+                                print("Counter error. Message ignored.")
+                                continue
+                            # Set the fingerprints counter to be the latest sent counter from that fingerprint
+                            counters[counterIndex] = (senderFingerprint, senderCounter)
+                    # If the fingerprint doesn't exist in the clients fingerprints list
+                    except ValueError:
+                        # Print a warning that someone unknown to you is trying to contact you
+                            print("An unknown sender is trying to contact you. There message has been dismissed as this may be unsafe.")
+                            continue
                     
                     # TEMPORARY CONFIRMATION - THIS NEEDS TO BE FORMATTED BETTER
                     print("Public message received from: ", data["sender"])
-
-                    ## ADD IN THE COUNTER UPDATE HERE ##
 
         # If an exception occurs because the server has closed it's connection
         except websockets.ConnectionClosed:
@@ -240,6 +305,8 @@ async def main(server):
     async with websockets.connect(server) as clientSocket:
         # Send a hello message as the first message to the server
         await asyncio.gather(sendHelloMessage(clientSocket))
+        # Send a client_list_request to get all online users to begin with
+        await asyncio.gather(getClientList(clientSocket))
         # Create the receiving messages task to handle the incoming messages from the connected server
         receive_task = asyncio.create_task(receiveMessages(clientSocket, stop_event))
         # Create the user input and handling of user input task which will call all the client side functions
@@ -249,9 +316,6 @@ async def main(server):
 
 # Basic initialisation code
 if __name__ == "__main__":
-    ## NEEDS TO BE FIXED ## 
-    counter = 1
-
     # Initialise the empty lists:
     # connectedServers stores all the currently connected servers
     connectedServers = []
@@ -273,7 +337,7 @@ if __name__ == "__main__":
     # Base 64 encode that hash to get the fingerprint of this client
     myFingerprint = base64.b64encode(sha256_hash).decode('utf-8')
     # Store this fingerprint, counter pair
-    counters.append([myFingerprint, 1])
+    counters.append([myFingerprint, -1])
     # Until user inputs "Shut down"
     while True:
         # Ask the user what server they would like to connect to 
