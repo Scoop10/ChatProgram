@@ -13,6 +13,7 @@ Need to implement the server to server communication:
     - Implement receiving a private message (decryption)
     - Implement sending a file
     - Implement signatures
+    - Implement client names for more user friendly stuff
 
 
 

@@ -2,36 +2,96 @@ import json
 import websockets
 import asyncio
 from Crypto.PublicKey import RSA
+from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.Random import get_random_bytes
 import hashlib
 import base64
+import traceback
 
 # This function will be called when the user types "Send a private message"
 # The function will take a list of participants from the command line and a message and broadcast it to the server and in turn all clients.
 # clientKey is this clients exported RSA key, destSocket is the socket that the client is connected on and sending the message to
-async def sendPrivateMessage(clientKey, destSocket):
-    
+async def sendPrivateMessage(destSocket):
+    counters[0][1] += 1
+    AESkey = get_random_bytes(32)
+
     ## NEED TO ADD IN HERE A SECTION WHERE I CAN CHOOSE WHICH PARTICIPANTS TO SEND IT TO ##
+    participantsString = input("Who would you like to send the message to: ")
+    participantsList = participantsString.split(",")
+    for participant in participantsList:
+        participant.strip()
+
+    ## FIND FINGERPRINTS OF CLIENTS HERE WHEN CLIENT IDS IMPLEMENTED ##
+    participantsList.insert(0, myFingerprint)
 
     # Receive input from the command line
-    Message = input()
-    
+    Message = input("Input the message you would like to send: ")
+
+    # Create the initialisation vector for the AES Encryption
+    iVect = get_random_bytes(16)
+    b64IV = base64.b64encode(iVect).decode('utf-8')
+
+    # Remove the sender from the participants list for encryption of key
+    participantsListNoSender = []
+    for entry in participantsList:
+        participantsListNoSender.append(entry)
+    participantsListNoSender.pop(0)
+    # Create the symm_keys list with the sending clients key as the first as per the specification
+    symm_keys = []
+    # Iterate through all participants it is being sent to
+    for participant in participantsListNoSender:
+        try:
+            # Find the index of the current participant
+            clientIndex = fingerprints.index(participant)
+            # Find the public key assigned to that participant
+            clientPublicKey = connectedClients[clientIndex]
+            # Create the cipher object
+            RSACipher = PKCS1_OAEP.new(clientPublicKey)
+            # Encrypt the AES Key with this clients public key
+            encryptedKey = RSACipher.encrypt(AESkey)
+            b64EncryptedKey = base64.b64encode(encryptedKey).decode('utf-8')
+            symm_keys.append(b64EncryptedKey)
+        except ValueError:
+            print("Participant not currently connected!! ")
+            continue
+
+
+    # Encrypt the participants
+    encryptedParticipants = []
+    for participant in participantsList:
+        cipher = AES.new(AESkey, AES.MODE_GCM, nonce=iVect)
+        encryptedParticipant, tag = cipher.encrypt_and_digest(participant.encode('utf-8'))
+        encryptedParticipants.append(base64.b64encode(tag + encryptedParticipant).decode('utf-8'))
+
+    # Create the AES Cipher object
+    cipher = AES.new(AESkey, AES.MODE_GCM, nonce=iVect)
+
+    encryptedMessage, tag = cipher.encrypt_and_digest(Message.encode('utf-8'))
+    encryptedMessageB64 = base64.b64encode(tag + encryptedMessage).decode('utf-8')
+
     # Package the chat section up. Message is still just plain text. Participants will be added from above.
     chat = {
-        "participants": [],
-        "message": Message
+        "participants": encryptedParticipants,
+        "message": encryptedMessageB64
     }
-
-    # Create the symm_keys list with the sending clients key as the first as per the specification
-    symm_keys = [clientKey]
 
     ## APPEND THE REST OF THE SYMM_KEYS FOR THE PARTICIPANTS HERE ##
 
+
     # Package the rest of the message into the desired package as per the specification
-    request = {
+    data = {
         "type": "chat",
         "destination_server": "coming",
-        "symm_key": clientKey,
+        "iv": b64IV,
+        "symm_key": symm_keys,
         "chat": chat
+    }
+
+    request = {
+        "type":"signed_data",
+        "data": data,
+        "counter": counters[0][1],
+        "signature":"coming"
     }
 
     # Serialise the request int JSON formatted string
@@ -39,6 +99,49 @@ async def sendPrivateMessage(clientKey, destSocket):
     # Send the serialised request on the activeSocket
     await destSocket.send(serialisedRequest)
 
+async def receivedPrivateChat(receivedRequest):
+    forMe = False
+    receivedData = receivedRequest["data"]
+    sender = None
+    message = None
+
+    iVect = base64.b64decode(receivedData["iv"])
+
+    for participant in receivedData["symm_key"]:
+        b64ReceivedEncryptedKey = participant.encode('utf-8')
+        receivedEncryptedKey = base64.b64decode(b64ReceivedEncryptedKey)
+        try:
+            myRSACipher = PKCS1_OAEP.new(myPrivateKey)
+            receivedAESKey = myRSACipher.decrypt(receivedEncryptedKey)
+            forMe = True
+            break
+        except ValueError:
+            continue
+        
+    if forMe:
+        receivedChat = receivedData["chat"]
+        encryptedChatParticipants = []
+        encryptedChatParticipantsTags = []
+        for participant in receivedChat["participants"]:
+            encryptedChatParticipantWithTag = base64.b64decode(participant)
+            participantsTag = encryptedChatParticipantWithTag[:16]
+            encryptedChatParticipantsTags.append(participantsTag)
+            encryptedChatParticipant = encryptedChatParticipantWithTag[16:]
+            encryptedChatParticipants.append(encryptedChatParticipant)
+
+        
+        encryptedChatMessageWithTag = base64.b64decode(receivedChat["message"])
+        messageTag = encryptedChatMessageWithTag[:16]
+        encryptedChatMessage = encryptedChatMessageWithTag[16:]
+
+        encryptedSender = encryptedChatParticipants[0]
+        decipher = AES.new(receivedAESKey, AES.MODE_GCM, nonce=iVect)
+        sender = decipher.decrypt_and_verify(encryptedSender, encryptedChatParticipantsTags[0]).decode('utf-8')
+
+        decipher = AES.new(receivedAESKey, AES.MODE_GCM, nonce=iVect)
+        message = decipher.decrypt_and_verify(encryptedChatMessage, messageTag).decode('utf-8')
+
+    return forMe, sender, message
 
 # This function is called when the user inputs "Send a public message"
 # The function receives input from the user and broadcasts it to all clients
@@ -132,7 +235,7 @@ async def receiveMessages(websocket, stop_event):
             # Deserialise the message
             responseMessage = json.loads(response)
             # TEMPORARY CONFIRMATION
-            print(f"Received response from server: ", responseMessage)
+            # print(f"Received response from server: ", responseMessage)
             # If a client_list message
             if responseMessage["type"] == "client_list":
                 # Clear the connectedClients list ready to refresh it
@@ -162,49 +265,51 @@ async def receiveMessages(websocket, stop_event):
                 if type == "chat":
                     # Extract the chat from the message
                     chat = data["chat"]
-                    # Extract the participants list
-                    participantsList = chat["participants"]
-                    # Find the fingerprint of the sender
-                    senderFingerprint = participantsList[0]
-                    # CHECK IF CLIENT HAS A FINGERPRINT STORED THAT MATCHES THE SENDER #
-                    try:
-                        # Check if the fingerprint exists in the clients fingerprints
-                        senderIndex = fingerprints.index(senderFingerprint)
-
-                        ## CLIENT COUNTER CHECKING ##
-                        # Initialise an iterator
-                        iterator = 0
-                        # For each entry in the counters list
-                        for fingerprint, counter in counters:
-                            # If the fingerprint exists in the counters list
-                            if fingerprint == senderFingerprint:
-                                # Set the counter index to be the current searched position
-                                counterIndex = iterator
-                                # Break the search
-                                break
-                            # If not found yet add one to the iterator
-                            iterator += 1
-                        # If the fingerprint wasn't found
-                        if iterator == len(counters):
-                            # Add the fingerprint, counter for the new client
-                            counters.append((senderFingerprint, senderCounter))
-                            # If the fingerprint was found
-                        else:
-                            if senderCounter <= counters[counterIndex][1]:
-                                print("Counter error. Message ignored.")
-                                continue
-                            # Set the fingerprints counter to be the latest sent counter from that fingerprint
-                            counters[counterIndex] = (senderFingerprint, senderCounter)
-                    # If the fingerprint doesn't exist in the clients fingerprints list
-                    except ValueError:
-                        # Print a warning that someone unknown to you is trying to contact you
-                            print("An unknown sender is trying to contact you. Their message has been dismissed as this may be unsafe. ")
-                            await asyncio.gather(getClientList(websocket))
-                            continue
-
                     ## ADD IN THE DECRYPTION CODE HERE ##
+                    returnTuple = await asyncio.gather(receivedPrivateChat(responseMessage))
+                    (forMe, senderFingerprint, privateMessage) = returnTuple[0]
+                    if forMe:
+                        # CHECK IF CLIENT HAS A FINGERPRINT STORED THAT MATCHES THE SENDER #
+                        try:
+                            # Check if the fingerprint exists in the clients fingerprints
+                            senderIndex = fingerprints.index(senderFingerprint)
 
-                    print(responseMessage)
+                            ## CLIENT COUNTER CHECKING ##
+                            # Initialise an iterator
+                            iterator = 0
+                            # For each entry in the counters list
+                            for fingerprint, counter in counters:
+                                # If the fingerprint exists in the counters list
+                                if fingerprint == senderFingerprint:
+                                    # Set the counter index to be the current searched position
+                                    counterIndex = iterator
+                                    # Break the search
+                                    break
+                                # If not found yet add one to the iterator
+                                iterator += 1
+                            # If the fingerprint wasn't found
+                            if iterator == len(counters):
+                                # Add the fingerprint, counter for the new client
+                                counters.append((senderFingerprint, senderCounter))
+                            # If the fingerprint was found
+                            else:
+                                if senderCounter <= counters[counterIndex][1]:
+                                    print("Counter error. Message ignored.")
+                                    continue
+                                # Set the fingerprints counter to be the latest sent counter from that fingerprint
+                                counters[counterIndex] = (senderFingerprint, senderCounter)
+                            print("Received a private message from ", senderFingerprint, ". They said: ")
+                            print(privateMessage)
+                        # If the fingerprint doesn't exist in the clients fingerprints list
+                        except ValueError:
+                            # Print a warning that someone unknown to you is trying to contact you
+                                print("An unknown sender is trying to contact you. Their message has been dismissed as this may be unsafe. ")
+                                await asyncio.gather(getClientList(websocket))
+                                continue
+                    else:
+                        continue
+
+                    # print(responseMessage)
                     
                 # Else if the received message is a public chat message
                 elif type == "public_chat":
@@ -258,6 +363,7 @@ async def receiveMessages(websocket, stop_event):
         # If any other exception occurs
         except Exception as e:
             print("Exception: ", {e})
+            traceback.print_exc()
             # Set stop_event to true (will shut down the client)
             stop_event.set()
             # Break the loop
@@ -291,6 +397,10 @@ async def userInterface(clientSocket, stop_event):
         elif command == "Send a public message":
             # Call the sendPublicMessage function to send a public message
             await asyncio.gather(sendPublicMessage(clientSocket))
+        # Else if the user enter "Send a private message"
+        elif command == "Send a private message":
+            # Call the sendPrivateMessage function to send a private message
+            await asyncio.gather(sendPrivateMessage(clientSocket))
         # Else If the user enters "Sign off"
         elif command == "Sign off":
             # CLose the socket connection and break the loop. Will shut down the client. 
@@ -319,8 +429,10 @@ if __name__ == "__main__":
     # Initialise the empty lists:
     # connectedServers stores all the currently connected servers
     connectedServers = []
-    # connectedClients stores all the currently connnected clients
+    # connectedClients stores all the currently connnected clients public RSA Keys
     connectedClients = []
+    # clientIDs stores the currently connected clients names. Me is the ID of this client
+    clientIDs = ["Me"] ## THIS HASN'T BEEN IMPLEMENTED ##
     # fingerprints will store all the currently connected clients fingerprints in the same order as the connectedClients list
     fingerprints = []
     # counters will store [fingerprint, counter] of all clients that have sent messages to this client. This will keep track of the latest counters for each client
@@ -342,6 +454,7 @@ if __name__ == "__main__":
     while True:
         # Ask the user what server they would like to connect to 
         server = input("Enter the server name you would like to connect to: ")
+        # server = "ws://localhost:8765"
         # If user inputs "Shut down"
         if server == "Shut down":
             # Break the loop - This will shut the program down

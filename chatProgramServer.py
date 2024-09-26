@@ -128,6 +128,18 @@ async def clientHandler(activeSocket):
                         ## END OF TEMPORARY ECHO CODE ##
                         # Go back to the start of the loop and wait for the next message
                         continue
+                    # Else if the received message is a private chat
+                    elif receivedData["type"] == "chat":
+                        # SERVER SIDE CONFIRMATION
+                        print("Received private chat message")
+                        # Convert the public_chat into a serialised JSON String
+                        serialisedData = json.dumps(data)
+                        # Schedule the data to be broadcast to all servers
+                        await asyncio.gather(sendToAllServers(serialisedData))
+                        ## TEMPORARY ECHO CODE ##
+                        for socket in socketList:
+                            await socket.send(serialisedData)
+                        ## END OF TEMPORARY ECHO CODE ##
                 # Else if the received message is a client_list_request
                 elif data["type"] == "client_list_request":
                     # Call the getClientList function in a coroutine with the activeSocket as the arg
@@ -162,10 +174,11 @@ async def startServer():
 
 # Main
 if __name__ == '__main__':
+    host = input("Which IP Address are you hosting this server on?")
     # Specify the port
-    port = 8765
+    port = input("What port would you like to host this server on? ")
     # Specify the host
-    host = "localhost" # PC
+    # host = "localhost" # PC 
     # SERVER SIDE CONFIRMATION
     print("Starting Server on IP: ", host, " and port: ", port)
     # Initialise empty lists for the required info to be stored:
