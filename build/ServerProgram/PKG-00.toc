@@ -1,0 +1,65 @@
+('C:\\Users\\scoop\\OneDrive\\Documents\\2024S2\\Secure '
+ 'Programming\\Programming Assignment\\build\\ServerProgram\\ServerProgram.pkg',
+ {'BINARY': True,
+  'DATA': True,
+  'EXECUTABLE': True,
+  'EXTENSION': True,
+  'PYMODULE': True,
+  'PYSOURCE': True,
+  'PYZ': False,
+  'SPLASH': True,
+  'SYMLINK': False},
+ [('pyi-contents-directory _internal', '', 'OPTION'),
+  ('PYZ-00.pyz',
+   'C:\\Users\\scoop\\OneDrive\\Documents\\2024S2\\Secure '
+   'Programming\\Programming Assignment\\build\\ServerProgram\\PYZ-00.pyz',
+   'PYZ'),
+  ('struct',
+   'C:\\Users\\scoop\\OneDrive\\Documents\\2024S2\\Secure '
+   'Programming\\Programming '
+   'Assignment\\build\\ServerProgram\\localpycs\\struct.pyc',
+   'PYMODULE'),
+  ('pyimod01_archive',
+   'C:\\Users\\scoop\\OneDrive\\Documents\\2024S2\\Secure '
+   'Programming\\Programming '
+   'Assignment\\build\\ServerProgram\\localpycs\\pyimod01_archive.pyc',
+   'PYMODULE'),
+  ('pyimod02_importers',
+   'C:\\Users\\scoop\\OneDrive\\Documents\\2024S2\\Secure '
+   'Programming\\Programming '
+   'Assignment\\build\\ServerProgram\\localpycs\\pyimod02_importers.pyc',
+   'PYMODULE'),
+  ('pyimod03_ctypes',
+   'C:\\Users\\scoop\\OneDrive\\Documents\\2024S2\\Secure '
+   'Programming\\Programming '
+   'Assignment\\build\\ServerProgram\\localpycs\\pyimod03_ctypes.pyc',
+   'PYMODULE'),
+  ('pyimod04_pywin32',
+   'C:\\Users\\scoop\\OneDrive\\Documents\\2024S2\\Secure '
+   'Programming\\Programming '
+   'Assignment\\build\\ServerProgram\\localpycs\\pyimod04_pywin32.pyc',
+   'PYMODULE'),
+  ('pyiboot01_bootstrap',
+   'C:\\Users\\scoop\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\loader\\pyiboot01_bootstrap.py',
+   'PYSOURCE'),
+  ('pyi_rth_inspect',
+   'C:\\Users\\scoop\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_inspect.py',
+   'PYSOURCE'),
+  ('pyi_rth_pkgutil',
+   'C:\\Users\\scoop\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_pkgutil.py',
+   'PYSOURCE'),
+  ('pyi_rth_multiprocessing',
+   'C:\\Users\\scoop\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python312\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_multiprocessing.py',
+   'PYSOURCE'),
+  ('chatProgramServer',
+   'C:\\Users\\scoop\\OneDrive\\Documents\\2024S2\\Secure '
+   'Programming\\Programming Assignment\\chatProgramServer.py',
+   'PYSOURCE')],
+ 'python312.dll',
+ True,
+ False,
+ False,
+ [],
+ None,
+ None,
+ None)

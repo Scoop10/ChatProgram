@@ -112,6 +112,8 @@ async def clientHandler(activeSocket):
                         await asyncio.gather(helloMessage(receivedData, activeSocket))
                         # SERVER SIDE CONFIRMATION
                         print("Hello message Received")
+                        for socket in socketList:
+                            await asyncio.gather(getClientList(socket))
                         # Go back to the start of the loop and wait for the next message
                         continue
                     # If a public_chat type of message has been received
@@ -162,14 +164,19 @@ async def clientHandler(activeSocket):
         # Remove the disconnected client  from the connected clients
         client_list.remove(client_list[index])
         # Send a client update to all servers as a client disconnected
+        for socket in socketList:
+            await asyncio.gather(getClientList(socket))
         await asyncio.gather(sendClientUpdate())
 
-# This function is used to start the server
+# This function is used to start the server to listen for messages from clients
 async def startServer():
     # Start the server on the host and port specified. "URL" will be ws://host:port
     server = await websockets.serve(clientHandler, host, port)
+    # otherServers = 
     # Wait until the server is closed then return
     await server.wait_closed()
+
+# async def otherServers():
 
 
 # Main

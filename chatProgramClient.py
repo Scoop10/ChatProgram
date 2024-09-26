@@ -7,6 +7,7 @@ from Crypto.Random import get_random_bytes
 import hashlib
 import base64
 import traceback
+import ssl
 
 # This function will be called when the user types "Send a private message"
 # The function will take a list of participants from the command line and a message and broadcast it to the server and in turn all clients.
@@ -38,11 +39,14 @@ async def sendPrivateMessage(destSocket):
     participantsListNoSender.pop(0)
     # Create the symm_keys list with the sending clients key as the first as per the specification
     symm_keys = []
+    destinationServers = []
     # Iterate through all participants it is being sent to
     for participant in participantsListNoSender:
         try:
             # Find the index of the current participant
             clientIndex = fingerprints.index(participant)
+            # Append the servers address
+            destinationServers.append(clientAddress[clientIndex])
             # Find the public key assigned to that participant
             clientPublicKey = connectedClients[clientIndex]
             # Create the cipher object
@@ -55,25 +59,17 @@ async def sendPrivateMessage(destSocket):
             print("Participant not currently connected!! ")
             continue
 
+    chat = {
+        "participants": participantsList,
+        "message": Message
+    }
 
-    # Encrypt the participants
-    encryptedParticipants = []
-    for participant in participantsList:
-        cipher = AES.new(AESkey, AES.MODE_GCM, nonce=iVect)
-        encryptedParticipant, tag = cipher.encrypt_and_digest(participant.encode('utf-8'))
-        encryptedParticipants.append(base64.b64encode(tag + encryptedParticipant).decode('utf-8'))
+    serialisedChat = json.dumps(chat)
 
     # Create the AES Cipher object
     cipher = AES.new(AESkey, AES.MODE_GCM, nonce=iVect)
-
-    encryptedMessage, tag = cipher.encrypt_and_digest(Message.encode('utf-8'))
-    encryptedMessageB64 = base64.b64encode(tag + encryptedMessage).decode('utf-8')
-
-    # Package the chat section up. Message is still just plain text. Participants will be added from above.
-    chat = {
-        "participants": encryptedParticipants,
-        "message": encryptedMessageB64
-    }
+    encryptedChat, tag = cipher.encrypt_and_digest(serialisedChat.encode('utf-8'))
+    encodedChat = base64.b64encode(tag + encryptedChat).decode('utf-8')
 
     ## APPEND THE REST OF THE SYMM_KEYS FOR THE PARTICIPANTS HERE ##
 
@@ -81,10 +77,10 @@ async def sendPrivateMessage(destSocket):
     # Package the rest of the message into the desired package as per the specification
     data = {
         "type": "chat",
-        "destination_server": "coming",
+        "destination_servers": destinationServers,
         "iv": b64IV,
         "symm_key": symm_keys,
-        "chat": chat
+        "chat": encodedChat
     }
 
     request = {
@@ -119,27 +115,20 @@ async def receivedPrivateChat(receivedRequest):
             continue
         
     if forMe:
-        receivedChat = receivedData["chat"]
-        encryptedChatParticipants = []
-        encryptedChatParticipantsTags = []
-        for participant in receivedChat["participants"]:
-            encryptedChatParticipantWithTag = base64.b64decode(participant)
-            participantsTag = encryptedChatParticipantWithTag[:16]
-            encryptedChatParticipantsTags.append(participantsTag)
-            encryptedChatParticipant = encryptedChatParticipantWithTag[16:]
-            encryptedChatParticipants.append(encryptedChatParticipant)
-
-        
-        encryptedChatMessageWithTag = base64.b64decode(receivedChat["message"])
-        messageTag = encryptedChatMessageWithTag[:16]
-        encryptedChatMessage = encryptedChatMessageWithTag[16:]
-
-        encryptedSender = encryptedChatParticipants[0]
+        receivedEncodedChat = receivedData["chat"]
+        receivedDecodedChat = base64.b64decode(receivedEncodedChat)
+        receivedTag = receivedDecodedChat[:16]
+        strippedReceivedDecodedChat = receivedDecodedChat[16:]
+                
         decipher = AES.new(receivedAESKey, AES.MODE_GCM, nonce=iVect)
-        sender = decipher.decrypt_and_verify(encryptedSender, encryptedChatParticipantsTags[0]).decode('utf-8')
+        decryptedReceivedChat = decipher.decrypt_and_verify(strippedReceivedDecodedChat, receivedTag)
 
-        decipher = AES.new(receivedAESKey, AES.MODE_GCM, nonce=iVect)
-        message = decipher.decrypt_and_verify(encryptedChatMessage, messageTag).decode('utf-8')
+        receivedChat = json.loads(decryptedReceivedChat)
+
+        receivedParticipants = receivedChat["participants"]
+        message = receivedChat["message"]
+
+        sender = receivedParticipants[0]
 
     return forMe, sender, message
 
@@ -147,6 +136,7 @@ async def receivedPrivateChat(receivedRequest):
 # The function receives input from the user and broadcasts it to all clients
 # destSocket is the socket of the connected server
 async def sendPublicMessage(destSocket):
+
     counters[0][1] += 1
 
     print("Enter message to send publicly: ")
@@ -190,7 +180,7 @@ async def sendHelloMessage(activeSocket):
         "type":"signed_data",
         "data": {
             "type" : "hello",
-            "public_key" : exportedPublicKey
+            "public_key" : exportedPublicKey.decode('utf-8')
         },
         "counter": counters[0][1],
         "signature":"coming" # NEEDS IMPLEMENTATION
@@ -200,22 +190,6 @@ async def sendHelloMessage(activeSocket):
     serialisedRequest = json.dumps(request)
     # Schedule serialised request to be sent to everyone via the server
     await activeSocket.send(serialisedRequest)
-
-# This function is called when the client receives a client_list message from the connected server
-# The function updates the fingerprints of all connected clients
-async def updateFingerprints():
-    # Clear the fingerprints list
-    fingerprints.clear()
-    # Iterate through all connected clients
-    for client in connectedClients:
-        # Take the SHA256 hash of the current public RSA key
-        sha256_hash = hashlib.sha256(client.export_key()).digest()
-        # Base 64 encode the hash taken above to get the clients fingerprint
-        clientFingerprint = base64.b64encode(sha256_hash).decode('utf-8')
-        # Append the updated fingerprint to the list
-        fingerprints.append(clientFingerprint)
-    # Print everyone that is online
-    print("Users who are currently online: \n", fingerprints)
 
 # This function runs as a continual process to receive messages over the server to client connection
 # The function is the main handler of all incoming messages and calls the relevant functions whenever a message is received
@@ -240,6 +214,7 @@ async def receiveMessages(websocket, stop_event):
             if responseMessage["type"] == "client_list":
                 # Clear the connectedClients list ready to refresh it
                 connectedClients.clear()
+                fingerprints.clear()
                 # Extract the servers list from the message
                 # Set the global connectedServerList to be the servers sent in the client_list message 
                 connectedServers = responseMessage["servers"]
@@ -247,10 +222,18 @@ async def receiveMessages(websocket, stop_event):
                 for server in responseMessage["servers"]:
                     # Iterate through each client in the current server
                     for clients in server["clients"]:
+                        # Take the SHA256 hash of the current public RSA key
+                        sha256_hash = hashlib.sha256(clients.encode('utf-8')).digest()
+                        # Base 64 encode the hash taken above to get the clients fingerprint
+                        clientFingerprint = base64.b64encode(sha256_hash).decode('utf-8')
+                        # Append the updated fingerprint to the list
+                        fingerprints.append(clientFingerprint)
                         # Append the current client onto the connectedClients list
                         connectedClients.append(RSA.import_key(clients))
+                        # Append the current clients server to the clientAddress list
+                        clientAddress.append(server["address"])
+                print("Users who are currently online: \n", fingerprints)
                 # Update the fingerprints to match the current connected clients list
-                await asyncio.gather(updateFingerprints())
             # Else if the received message is signed_data
             elif responseMessage["type"] == "signed_data":
                 # Extract the data portion of the message
@@ -261,8 +244,6 @@ async def receiveMessages(websocket, stop_event):
                 senderCounter = responseMessage["counter"]
                 # If the data is a private chat
                 if type == "chat":
-                    # Extract the chat from the message
-                    chat = data["chat"]
                     ## ADD IN THE DECRYPTION CODE HERE ##
                     returnTuple = await asyncio.gather(receivedPrivateChat(responseMessage))
                     (forMe, senderFingerprint, privateMessage) = returnTuple[0]
@@ -305,7 +286,6 @@ async def receiveMessages(websocket, stop_event):
                         except ValueError:
                             # Print a warning that someone unknown to you is trying to contact you
                                 print("An unknown sender is trying to contact you. Their message has been dismissed as this may be unsafe. ")
-                                await asyncio.gather(getClientList(websocket))
                                 continue
                     else:
                         continue                    
@@ -411,7 +391,7 @@ async def main(server):
     # Create a new asyncio event
     stop_event = asyncio.Event()
     # Connect the websocket on the above server and assign it to be clientSocket
-    async with websockets.connect(server) as clientSocket:
+    async with websockets.connect(server, ssl = ssl_context) as clientSocket:
         # Send a hello message as the first message to the server
         await asyncio.gather(sendHelloMessage(clientSocket))
         # Send a client_list_request to get all online users to begin with
@@ -430,6 +410,8 @@ if __name__ == "__main__":
     connectedServers = []
     # connectedClients stores all the currently connnected clients public RSA Keys
     connectedClients = []
+    # clientAddress stores the curently connectected clients server address
+    clientAddress = []
     # clientIDs stores the currently connected clients names. Me is the ID of this client
     clientIDs = ["Me"] ## THIS HASN'T BEEN IMPLEMENTED ##
     # fingerprints will store all the currently connected clients fingerprints in the same order as the connectedClients list
@@ -441,14 +423,22 @@ if __name__ == "__main__":
     myPrivateKey = RSA.generate(2048)
     # Generate the matching public RSA key
     myPublicKey = myPrivateKey.public_key()
-    # Export that public key to a string
-    exportedPublicKey = myPublicKey.export_key().decode('utf-8')
+    # Export that public key to the raw PEM
+    exportedPublicKey = myPublicKey.export_key('PEM')
     # Take the hash of the string public key
-    sha256_hash = hashlib.sha256(myPublicKey.export_key()).digest()
+    sha256_hash = hashlib.sha256(exportedPublicKey).digest()
     # Base 64 encode that hash to get the fingerprint of this client
     myFingerprint = base64.b64encode(sha256_hash).decode('utf-8')
     # Store this fingerprint, counter pair
     counters.append([myFingerprint, -1])
+
+    print(myFingerprint)
+
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+
+
     # Until user inputs "Shut down"
     while True:
         # Ask the user what server they would like to connect to 
