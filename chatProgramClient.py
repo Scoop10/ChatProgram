@@ -198,7 +198,7 @@ async def receiveMessages(websocket, stop_event):
                     # If the fingerprint doesn't exist in the clients fingerprints list
                     except ValueError:
                         # Print a warning that someone unknown to you is trying to contact you
-                            print("An unknown sender is trying to contact you. There message has been dismissed as this may be unsafe. ")
+                            print("An unknown sender is trying to contact you. Their message has been dismissed as this may be unsafe. ")
                             await asyncio.gather(getClientList(websocket))
                             continue
 

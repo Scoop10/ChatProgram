@@ -7,6 +7,7 @@ Need to implement the server to server communication:
         - Just need to update the sending servers clients in the server_list
     - Implement storing files
     - Implement message checking before forwarding (see if they follow the specified formats)
+    - Clear up the who's online bit - should we be sending a periodic who's online message so that we are more up to date on who is actually online.
 - Client Side
     - Implement sending a private message (encryption)
     - Implement receiving a private message (decryption)
