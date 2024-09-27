@@ -185,7 +185,10 @@ async def clientHandler(activeSocket, server):
         # Send a client update to all servers as a client disconnected
         for socket in socketList:
             await asyncio.gather(getClientList(socket))
-        await asyncio.gather(sendClientUpdate())
+        for server in server_list[1:]:
+            serverSocket = server["socket"]
+            if serverSocket is not None:
+                await asyncio.gather(sendClientUpdate(serverSocket))
 
 # This function is used to start the server to listen for messages from clients
 async def startServer():
@@ -207,7 +210,7 @@ async def startServer():
                     "type" : "client_udpate_request"
                 }
                 await websocket.send(json.dumps(serverClientUpdateRequest))
-                await asyncio.gather(clientHandler(websocket))
+                await asyncio.gather(clientHandler(websocket, True))
         except TimeoutError:
             print(othersUri, " is not online!")
     await server.wait_closed()
@@ -232,7 +235,7 @@ if __name__ == '__main__':
     # Reilly's URI - ws://192.168.20.24:1234
     # Aaron's URI - ws://115.70.25.92:5678
     
-    laptopServer = {"address":"ws://192.168.20.49:5678", "clients":[], "socket":None}
+    laptopServer = {"address":"ws://192.168.20.24:1234", "clients":[], "socket":None}
 
     # server_list will have all of the neighborhood servers manually entered
     server_list = [{"address" : host, "clients" : client_list, "socket":None}, laptopServer]
