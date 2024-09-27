@@ -57,7 +57,7 @@ async def getClientList(activeSocket):
 
 # This function is called when a server requests a client_update because a client has either said hello or disconnected
 # The function compiled a client_update message and sends it to all servers (THIS HAS NOT YET BEEN IMPLEMENTED!!!!!)
-async def sendClientUpdate():
+async def sendClientUpdate(activeSocket):
     # Initialise an empty list to store the RSA public key strings in
     stringClientList = []
     # Iterate through all the currently connected clients
@@ -73,6 +73,7 @@ async def sendClientUpdate():
     serialisedClientList = json.dumps(request)
 
     ## THIS NEEDS TO BE SENT TO EACH SERVER!!!!!!!! ##
+    await activeSocket.send(serialisedClientList)
 
 # This function is called when either a public or a private chat is received from a client on this server
 # The function sends the message to every server
@@ -85,8 +86,8 @@ async def sendToAllServers(data):
 
 # This function is the main handler of all clients. Each client has an individual socket
 # The general purpose of this function is to receive messages from clients and to call or perform the correct functions based on the type of message received
-# activeSocket is the current socket which the client in this async process is running on
-async def clientHandler(activeSocket):    
+# activeSocket is the current socket which the client in this async process is running on, server is a boolean if it's a server or not
+async def clientHandler(activeSocket, server):
     print("New client connected: ")
     # Try is used so that if an exception occurs it is handled properly
     try:
@@ -162,21 +163,25 @@ async def clientHandler(activeSocket):
                         print("An unverified server is trying to send a message!!!")
                         continue
                     server_list[currentServerIndex]["clients"] = data["clients"]
+                elif data["type"] == "client_update_request":
+                    await asyncio.gather(sendClientUpdate(activeSocket))
             # If the socket doesn't receive a message for 5 seconds
             except asyncio.TimeoutError:
                 # Send a ping to check if the socket is still online
                 await activeSocket.ping()
     # If an exception occurs as the client disconnected
     except websockets.ConnectionClosed:
-        # Find the socket which disconnected
-        index = socketList.index(activeSocket)
-        # SERVER SIDE CONFIRMATION
-        print(client_list[index], " Disconnected. Connection Closed!")
+        if not server:
+            # Find the socket which disconnected
+            index = socketList.index(activeSocket)
+            # SERVER SIDE CONFIRMATION
+            print(client_list[index], " Disconnected. Connection Closed!")
     finally:
-        # Remove the disconnected socket from the socketList
-        socketList.remove(activeSocket)
-        # Remove the disconnected client  from the connected clients
-        client_list.remove(client_list[index])
+        if not server:
+            # Remove the disconnected socket from the socketList
+            socketList.remove(activeSocket)
+            # Remove the disconnected client  from the connected clients
+            client_list.remove(client_list[index])
         # Send a client update to all servers as a client disconnected
         for socket in socketList:
             await asyncio.gather(getClientList(socket))
@@ -188,20 +193,20 @@ async def startServer():
     ssl_context.check_hostname = False
     ssl_context.verify_mode = ssl.CERT_NONE
     # Start the server on the host and port specified. "URI" will be ws://host:port ---- , ssl = ssl_context
-    server = await websockets.serve(clientHandler, host = host, port = port)
+    server = await websockets.serve(lambda ws, path: clientHandler(ws, False), host = host, port = port)
     for otherServers in server_list[1:]:
         try:
             othersUri = otherServers["address"]
-            async with websockets.connect(othersUri) as websocket:
+            async with websockets.connect(othersUri, open_timeout=1.0) as websocket:
                 serverHelloRequest = {
                     "type" : "server_hello",
                     "sender" : uri
                 }
-                websocket.send(json.dumps(serverHelloRequest))
+                await websocket.send(json.dumps(serverHelloRequest))
                 serverClientUpdateRequest = {
-                    "type" : "client_list_request"
+                    "type" : "client_udpate_request"
                 }
-                websocket.send(json.dumps(serverClientUpdateRequest))
+                await websocket.send(json.dumps(serverClientUpdateRequest))
                 await asyncio.gather(clientHandler(websocket))
         except TimeoutError:
             print(othersUri, " is not online!")
@@ -215,7 +220,7 @@ if __name__ == '__main__':
     # Specify the port
     port = input("What port would you like to host this server on? ")
     # Specify the host
-    # host = "localhost" # PC 
+    # host = "localhost" # PC
     # SERVER SIDE CONFIRMATION
     uri = "ws://" + host + ":" + port
     print("Starting server on ", uri)
@@ -227,10 +232,10 @@ if __name__ == '__main__':
     # Reilly's URI - ws://192.168.20.24:1234
     # Aaron's URI - ws://115.70.25.92:5678
     
-    okiaServer = {"address":"ws://115.70.25.92:5678", "clients":[], "socket":None}
+    laptopServer = {"address":"ws://192.168.20.49:5678", "clients":[], "socket":None}
 
     # server_list will have all of the neighborhood servers manually entered
-    server_list = [{"address" : host, "clients" : client_list, "socket":None}, okiaServer]
+    server_list = [{"address" : host, "clients" : client_list, "socket":None}, laptopServer]
 
     # Start the server
     asyncio.run(startServer())
