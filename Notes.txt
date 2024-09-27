@@ -9,13 +9,13 @@ Need to implement the server to server communication:
     - Implement message checking before forwarding (see if they follow the specified formats)
     - Clear up the who's online bit - should we be sending a periodic who's online message so that we are more up to date on who is actually online.
 - Client Side
-    - Fix the encryption/ddecryption of participants (-encrypt and b64 whole segment)
+    - Fix the encryption/decryption of participants (-encrypt and b64 whole segment)
     - Implement sending a file
     - Implement signatures
     - Implement client names for more user friendly stuff
 
 
-
+ 
 
 How Message Signatures Work
 The process of creating and verifying message signatures involves several key steps:

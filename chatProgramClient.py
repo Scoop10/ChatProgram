@@ -391,7 +391,7 @@ async def main(server):
     # Create a new asyncio event
     stop_event = asyncio.Event()
     # Connect the websocket on the above server and assign it to be clientSocket
-    async with websockets.connect(server, ssl = ssl_context) as clientSocket:
+    async with websockets.connect(server) as clientSocket:
         # Send a hello message as the first message to the server
         await asyncio.gather(sendHelloMessage(clientSocket))
         # Send a client_list_request to get all online users to begin with

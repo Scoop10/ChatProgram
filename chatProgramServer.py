@@ -2,6 +2,7 @@ import json
 import websockets
 from Crypto.PublicKey import RSA
 import asyncio
+import ssl
 
 # This function is called when a hello message is received from a client
 # It checks if the client who sent the hello is in the currently connected clients list.
@@ -76,20 +77,33 @@ async def sendClientUpdate():
 # This function is called when either a public or a private chat is received from a client on this server
 # The function sends the message to every server
 # Data is a serialised JSON String package which is to be sent to all servers
-## THIS NEEDS TO BE COMPLETED ##
 async def sendToAllServers(data):
-    ## UNCOMMENT AND FINISH THIS CODE WHEN THE SERVER CONNECTIONS HAVE BEEN DEALT WITH ##
-
-    # Iterate through all servers
-    # for server in serverSocketList:
-        # Send the public_chat to all servers
-    #     await server.send(serialisedData)
-    return
+    for server in server_list[1:]:
+        serverSocket = server["socket"]
+        if serverSocket is not None:
+            await serverSocket.send(data)
 
 # This function is the main handler of all clients. Each client has an individual socket
 # The general purpose of this function is to receive messages from clients and to call or perform the correct functions based on the type of message received
 # activeSocket is the current socket which the client in this async process is running on
 async def clientHandler(activeSocket):
+    for otherServers in server_list[1:]:
+        try:
+            othersUri = otherServers["address"]
+            async with websockets.connect(othersUri) as websocket:
+                serverHelloRequest = {
+                    "type" : "server_hello",
+                    "sender" : uri
+                }
+                websocket.send(json.dumps(serverHelloRequest))
+                serverClientUpdateRequest = {
+                    "type" : "client_list_request"
+                }
+                websocket.send(json.dumps(serverClientUpdateRequest))
+        except ConnectionRefusedError:
+            print(uri, " is not online!")
+    
+    print("New client connected: ")
     # Try is used so that if an exception occurs it is handled properly
     try:
         # This loop should run until an exception is encountered (such as the socket closing)
@@ -148,6 +162,22 @@ async def clientHandler(activeSocket):
                     await asyncio.gather(getClientList(activeSocket))
                     # Go back to the start of the loop and wait for the next message
                     continue
+                elif data["type"] == "server_hello":
+                    serverURI = data["sender"]
+                    server_list.append({"address":serverURI, "clients":[], "socket":activeSocket})
+                    print("Server at URI ", serverURI, " connected!")
+                elif data["type"] == "client_update":
+                    serverSockets = []
+                    iterator = 0
+                    for server in server_list:
+                        serverSockets.append(server["socket"])
+                        if server["socket"] == activeSocket:
+                            currentServerIndex = iterator
+                            break
+                    if iterator == len(server_list):
+                        print("An unverified server is trying to send a message!!!")
+                        continue
+                    server_list[currentServerIndex]["clients"] = data["clients"]
             # If the socket doesn't receive a message for 5 seconds
             except asyncio.TimeoutError:
                 # Send a ping to check if the socket is still online
@@ -170,33 +200,30 @@ async def clientHandler(activeSocket):
 
 # This function is used to start the server to listen for messages from clients
 async def startServer():
-    # Start the server on the host and port specified. "URL" will be ws://host:port
-    server = await websockets.serve(clientHandler, host, port)
-    # otherServers = 
-    # Wait until the server is closed then return
+    # ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    # Start the server on the host and port specified. "URI" will be ws://host:port
+    server = await websockets.serve(clientHandler, host = host, port = port)
     await server.wait_closed()
-
-# async def otherServers():
-
 
 # Main
 if __name__ == '__main__':
+    serverRSAKey = RSA.generate(2048)
+    publicRSAKey = serverRSAKey.public_key().export_key().decode('utf-8')
     host = input("Which IP Address are you hosting this server on?")
     # Specify the port
     port = input("What port would you like to host this server on? ")
     # Specify the host
     # host = "localhost" # PC 
     # SERVER SIDE CONFIRMATION
-    print("Starting Server on IP: ", host, " and port: ", port)
+    uri = "ws://" + host + ":" + port
+    print("Starting server on ", uri)
     # Initialise empty lists for the required info to be stored:
     # socketList stores active sockets, client_list stores active clients RSA keys
     socketList = []
     client_list = []
     
     # server_list will have all of the neighborhood servers manually entered
-    server_list = []
+    server_list = [{"address" : host, "clients" : client_list, "socket":None}]
 
-    # Append this server to the server_list
-    server_list.append({"address" : host, "clients" : client_list})
     # Start the server
     asyncio.run(startServer())
