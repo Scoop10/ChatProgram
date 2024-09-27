@@ -390,7 +390,7 @@ async def userInterface(clientSocket, stop_event):
 async def main(server):
     # Create a new asyncio event
     stop_event = asyncio.Event()
-    # Connect the websocket on the above server and assign it to be clientSocket
+    # Connect the websocket on the above server and assign it to be clientSocket ---- , ssl = ssl_context
     async with websockets.connect(server) as clientSocket:
         # Send a hello message as the first message to the server
         await asyncio.gather(sendHelloMessage(clientSocket))

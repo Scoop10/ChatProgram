@@ -184,8 +184,10 @@ async def clientHandler(activeSocket):
 
 # This function is used to start the server to listen for messages from clients
 async def startServer():
-    # ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    # Start the server on the host and port specified. "URI" will be ws://host:port
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    # Start the server on the host and port specified. "URI" will be ws://host:port ---- , ssl = ssl_context
     server = await websockets.serve(clientHandler, host = host, port = port)
     for otherServers in server_list[1:]:
         try:
@@ -201,8 +203,8 @@ async def startServer():
                 }
                 websocket.send(json.dumps(serverClientUpdateRequest))
                 await asyncio.gather(clientHandler(websocket))
-        except ConnectionRefusedError:
-            print(uri, " is not online!")
+        except TimeoutError:
+            print(othersUri, " is not online!")
     await server.wait_closed()
 
 # Main
@@ -222,7 +224,8 @@ if __name__ == '__main__':
     socketList = []
     client_list = []
 
-    # Reilly's IP - 192.168.20.24
+    # Reilly's URI - ws://192.168.20.24:1234
+    # Aaron's URI - ws://115.70.25.92:5678
     
     okiaServer = {"address":"ws://115.70.25.92:5678", "clients":[], "socket":None}
 
