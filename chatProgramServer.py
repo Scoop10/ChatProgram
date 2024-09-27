@@ -216,7 +216,7 @@ async def startServer():
     for otherServers in server_list[1:]:
         try:
             othersUri = otherServers["address"]
-            async with websockets.connect(othersUri, open_timeout=1.0) as websocket:
+            async with websockets.connect(othersUri, open_timeout=1) as websocket:
                 serverHelloRequest = {
                     "type" : "server_hello",
                     "sender" : uri
