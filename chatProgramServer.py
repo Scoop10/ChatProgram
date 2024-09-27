@@ -18,6 +18,11 @@ async def helloMessage(data, activeSocket):
         socketList.append(activeSocket)
         # Append the new RSA key object to the currently connected client_list (This is at the same index as the socket which the client is connected on so that they are effectively linked)
         client_list.append(newKey)
+    
+    for server in server_list[1:]:
+        serverSocket = server["socket"]
+        if serverSocket is not None:
+            await asyncio.gather(sendClientUpdate(serverSocket))
 
 # This function is called when the server receives a client_list_request message.
 # The function sends a client_list message back to the socket which requested it
@@ -139,7 +144,8 @@ async def clientHandler(activeSocket):
                         await asyncio.gather(sendToAllServers(serialisedData))
                         ## TEMPORARY ECHO CODE ##
                         for socket in socketList:
-                            await socket.send(serialisedData)
+                            if socket is not activeSocket:
+                                await socket.send(serialisedData)
                         ## END OF TEMPORARY ECHO CODE ##
                 # Else if the received message is a client_list_request
                 elif data["type"] == "client_list_request":
