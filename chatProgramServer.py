@@ -9,6 +9,7 @@ import ssl
 # If not it adds the clients socket to the socket list and the clients public key to the connected clients list
 # data is the data which has been extracted from the hello message and activeSocket is the socket which the client is currently connected on
 async def helloMessage(data, activeSocket):
+    print("New client with RSA key " data["public_key"], " joined")
     # Create a new RSA key object from the public_key string which is sent in the data package
     newKey = RSA.import_key(data["public_key"])
     # If the key is not in the current connected client_list
@@ -90,8 +91,6 @@ async def sendToAllServers(data):
 # The general purpose of this function is to receive messages from clients and to call or perform the correct functions based on the type of message received
 # activeSocket is the current socket which the client in this async process is running on, server is a boolean if it's a server or not
 async def clientHandler(activeSocket):
-    print("New client connected: ")
-
     # Try is used so that if an exception occurs it is handled properly
     try:
         # This loop should run until an exception is encountered (such as the socket closing)
@@ -112,8 +111,6 @@ async def clientHandler(activeSocket):
                     if receivedData["type"] == "hello":
                         # Call the helloMessage function as a coroutine to execute concurrently
                         await asyncio.gather(helloMessage(receivedData, activeSocket))
-                        # SERVER SIDE CONFIRMATION
-                        print("Hello message Received")
                         for socket in socketList:
                             await asyncio.gather(getClientList(socket))
                         # Go back to the start of the loop and wait for the next message
@@ -174,17 +171,24 @@ async def clientHandler(activeSocket):
                 await activeSocket.ping()
     # If an exception occurs as the client disconnected
     except websockets.ConnectionClosed:
-        if not server:
+        try:
             # Find the socket which disconnected
             index = socketList.index(activeSocket)
             # SERVER SIDE CONFIRMATION
             print(client_list[index], " Disconnected. Connection Closed!")
+        except ValueError:
+            print("A server has diconnected! ") ## FIND WHICH SERVER ##
+            for server in server_list[1:]:
+                serverSocket = server["socket"]
+                if serverSocket is not None:
+                    await asyncio.gather(sendClientUpdate(serverSocket))
+            return
+
     finally:
-        if not server:
-            # Remove the disconnected socket from the socketList
-            socketList.remove(activeSocket)
-            # Remove the disconnected client  from the connected clients
-            client_list.remove(client_list[index])
+        # Remove the disconnected socket from the socketList
+        socketList.remove(activeSocket)
+        # Remove the disconnected client  from the connected clients
+        client_list.remove(client_list[index])
         # Send a client update to all servers as a client disconnected
         for socket in socketList:
             await asyncio.gather(getClientList(socket))
@@ -213,6 +217,7 @@ async def startServer():
                     "type" : "client_update_request"
                 }
                 await websocket.send(json.dumps(serverClientUpdateRequest))
+                await asyncio.gather(clientHandler(websocket))
         except TimeoutError:
             print(othersUri, " is not online!")
     await server.wait_closed()
