@@ -207,7 +207,7 @@ async def startServer():
     for otherServers in server_list[1:]:
         try:
             othersUri = otherServers["address"]
-            async with websockets.connect(othersUri, open_timeout=1.0) as websocket:
+            async with websockets.connect(othersUri, open_timeout=1) as websocket:
                 serverHelloRequest = {
                     "type" : "server_hello",
                     "sender" : uri
@@ -245,7 +245,7 @@ if __name__ == '__main__':
     laptopServer = {"address":"ws://192.168.20.24:1234", "clients":[], "socket":None}
 
     # server_list will have all of the neighborhood servers manually entered
-    server_list = [{"address" : host, "clients" : client_list, "socket":None}, laptopServer]
+    server_list = [{"address" : uri, "clients" : client_list, "socket":None}, laptopServer]
 
     # Start the server
     asyncio.run(startServer())
