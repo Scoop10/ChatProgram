@@ -229,6 +229,8 @@ async def startServer():
                 await asyncio.gather(clientHandler(websocket))
         except TimeoutError:
             print(othersUri, " is not online!")
+        except asyncio.TimeoutError:
+            print(othersUri, " is not online!")
     await server.wait_closed()
 
 # Main
@@ -251,7 +253,7 @@ if __name__ == '__main__':
     # Reilly's URI - ws://192.168.20.24:1234
     # Aaron's URI - ws://115.70.25.92:5678
     
-    laptopServer = {"address":"ws://192.168.20.49:5678", "clients":[], "socket":None}
+    laptopServer = {"address":"ws://192.168.20.24:1234", "clients":[], "socket":None}
 
     # server_list will have all of the neighborhood servers manually entered
     server_list = [{"address" : uri, "clients" : client_list, "socket":None}, laptopServer]
