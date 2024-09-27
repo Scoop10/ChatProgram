@@ -9,7 +9,7 @@ import ssl
 # If not it adds the clients socket to the socket list and the clients public key to the connected clients list
 # data is the data which has been extracted from the hello message and activeSocket is the socket which the client is currently connected on
 async def helloMessage(data, activeSocket):
-    print("New client with RSA key " data["public_key"], " joined")
+    print("New client with RSA key ", data["public_key"], " joined")
     # Create a new RSA key object from the public_key string which is sent in the data package
     newKey = RSA.import_key(data["public_key"])
     # If the key is not in the current connected client_list
@@ -153,13 +153,13 @@ async def clientHandler(activeSocket):
                     print("Server at URI ", serverURI, " connected!")
                 elif data["type"] == "client_update":
                     serverSockets = []
-                    iterator = 0
+                    currentServerIndex = 0
                     for server in server_list:
                         serverSockets.append(server["socket"])
                         if server["socket"] == activeSocket:
-                            currentServerIndex = iterator
                             break
-                    if iterator == len(server_list):
+                        currentServerIndex += 1
+                    if currentServerIndex == len(server_list):
                         print("An unverified server is trying to send a message!!!")
                         continue
                     server_list[currentServerIndex]["clients"] = data["clients"]
@@ -242,7 +242,7 @@ if __name__ == '__main__':
     # Reilly's URI - ws://192.168.20.24:1234
     # Aaron's URI - ws://115.70.25.92:5678
     
-    laptopServer = {"address":"ws://192.168.20.49:5678", "clients":[], "socket":None}
+    laptopServer = {"address":"ws://192.168.20.24:1234", "clients":[], "socket":None}
 
     # server_list will have all of the neighborhood servers manually entered
     server_list = [{"address" : host, "clients" : client_list, "socket":None}, laptopServer]
