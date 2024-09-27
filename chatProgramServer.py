@@ -72,6 +72,8 @@ async def sendClientUpdate(activeSocket):
     # Serialise the request into a JSON formatted string
     serialisedClientList = json.dumps(request)
 
+    print("Sending ", serialisedClientList)
+
     ## THIS NEEDS TO BE SENT TO EACH SERVER!!!!!!!! ##
     await activeSocket.send(serialisedClientList)
 
@@ -207,7 +209,7 @@ async def startServer():
                     "type" : "client_udpate_request"
                 }
                 await websocket.send(json.dumps(serverClientUpdateRequest))
-                await asyncio.gather(clientHandler(websocket))
+                await asyncio.gather(clientHandler(websocket, True))
         except TimeoutError:
             print(othersUri, " is not online!")
     await server.wait_closed()
