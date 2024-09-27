@@ -86,23 +86,7 @@ async def sendToAllServers(data):
 # This function is the main handler of all clients. Each client has an individual socket
 # The general purpose of this function is to receive messages from clients and to call or perform the correct functions based on the type of message received
 # activeSocket is the current socket which the client in this async process is running on
-async def clientHandler(activeSocket):
-    for otherServers in server_list[1:]:
-        try:
-            othersUri = otherServers["address"]
-            async with websockets.connect(othersUri) as websocket:
-                serverHelloRequest = {
-                    "type" : "server_hello",
-                    "sender" : uri
-                }
-                websocket.send(json.dumps(serverHelloRequest))
-                serverClientUpdateRequest = {
-                    "type" : "client_list_request"
-                }
-                websocket.send(json.dumps(serverClientUpdateRequest))
-        except ConnectionRefusedError:
-            print(uri, " is not online!")
-    
+async def clientHandler(activeSocket):    
     print("New client connected: ")
     # Try is used so that if an exception occurs it is handled properly
     try:
@@ -203,6 +187,22 @@ async def startServer():
     # ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     # Start the server on the host and port specified. "URI" will be ws://host:port
     server = await websockets.serve(clientHandler, host = host, port = port)
+    for otherServers in server_list[1:]:
+        try:
+            othersUri = otherServers["address"]
+            async with websockets.connect(othersUri) as websocket:
+                serverHelloRequest = {
+                    "type" : "server_hello",
+                    "sender" : uri
+                }
+                websocket.send(json.dumps(serverHelloRequest))
+                serverClientUpdateRequest = {
+                    "type" : "client_list_request"
+                }
+                websocket.send(json.dumps(serverClientUpdateRequest))
+                await asyncio.gather(clientHandler(websocket))
+        except ConnectionRefusedError:
+            print(uri, " is not online!")
     await server.wait_closed()
 
 # Main
@@ -221,9 +221,13 @@ if __name__ == '__main__':
     # socketList stores active sockets, client_list stores active clients RSA keys
     socketList = []
     client_list = []
+
+    # Reilly's IP - 192.168.20.24
     
+    okiaServer = {"address":"ws://115.70.25.92:5678", "clients":[], "socket":None}
+
     # server_list will have all of the neighborhood servers manually entered
-    server_list = [{"address" : host, "clients" : client_list, "socket":None}]
+    server_list = [{"address" : host, "clients" : client_list, "socket":None}, okiaServer]
 
     # Start the server
     asyncio.run(startServer())
