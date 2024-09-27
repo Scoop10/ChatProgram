@@ -113,7 +113,6 @@ async def receivedPrivateChat(receivedRequest):
             break
         except ValueError:
             continue
-        
     if forMe:
         receivedEncodedChat = receivedData["chat"]
         receivedDecodedChat = base64.b64decode(receivedEncodedChat)

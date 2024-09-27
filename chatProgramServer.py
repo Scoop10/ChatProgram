@@ -123,9 +123,9 @@ async def clientHandler(activeSocket):
                         serialisedData = json.dumps(data)
                         # Schedule the data to be broadcast to all servers
                         await asyncio.gather(sendToAllServers(serialisedData))
-                        ## TEMPORARY ECHO CODE ##
                         for socket in socketList:
-                            await socket.send(serialisedData)
+                            if socket is not activeSocket:
+                                await socket.send(serialisedData)
                         ## END OF TEMPORARY ECHO CODE ##
                         # Go back to the start of the loop and wait for the next message
                         continue
@@ -185,17 +185,20 @@ async def clientHandler(activeSocket):
             return
 
     finally:
-        # Remove the disconnected socket from the socketList
-        socketList.remove(activeSocket)
-        # Remove the disconnected client  from the connected clients
-        client_list.remove(client_list[index])
-        # Send a client update to all servers as a client disconnected
-        for socket in socketList:
-            await asyncio.gather(getClientList(socket))
-        for server in server_list[1:]:
-            serverSocket = server["socket"]
-            if serverSocket is not None:
-                await asyncio.gather(sendClientUpdate(serverSocket))
+        try:
+            # Remove the disconnected socket from the socketList
+            socketList.remove(activeSocket)
+            # Remove the disconnected client  from the connected clients
+            client_list.remove(client_list[index])
+            # Send a client update to all servers as a client disconnected
+            for socket in socketList:
+                await asyncio.gather(getClientList(socket))
+            for server in server_list[1:]:
+                serverSocket = server["socket"]
+                if serverSocket is not None:
+                    await asyncio.gather(sendClientUpdate(serverSocket))
+        except ValueError:
+            return
 
 # This function is used to start the server to listen for messages from clients
 async def startServer():
@@ -242,7 +245,7 @@ if __name__ == '__main__':
     # Reilly's URI - ws://192.168.20.24:1234
     # Aaron's URI - ws://115.70.25.92:5678
     
-    laptopServer = {"address":"ws://192.168.20.24:1234", "clients":[], "socket":None}
+    laptopServer = {"address":"ws://192.168.20.49:5678", "clients":[], "socket":None}
 
     # server_list will have all of the neighborhood servers manually entered
     server_list = [{"address" : uri, "clients" : client_list, "socket":None}, laptopServer]
