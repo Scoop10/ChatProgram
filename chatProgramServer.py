@@ -72,6 +72,8 @@ async def sendClientUpdate(activeSocket):
     # Serialise the request into a JSON formatted string
     serialisedClientList = json.dumps(request)
 
+    print("Sending ", serialisedClientList)
+
     ## THIS NEEDS TO BE SENT TO EACH SERVER!!!!!!!! ##
     await activeSocket.send(serialisedClientList)
 
