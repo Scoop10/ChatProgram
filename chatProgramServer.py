@@ -216,7 +216,7 @@ async def startServer():
     for otherServers in server_list[1:]:
         try:
             othersUri = otherServers["address"]
-            async with websockets.connect(othersUri, open_timeout=2) as websocket:
+            async with websockets.connect(othersUri, open_timeout=1) as websocket:
                 serverHelloRequest = {
                     "type" : "server_hello",
                     "sender" : uri
@@ -228,6 +228,8 @@ async def startServer():
                 await websocket.send(json.dumps(serverClientUpdateRequest))
                 await asyncio.gather(clientHandler(websocket))
         except TimeoutError:
+            print(othersUri, " is not online!")
+        except asyncio.TimeoutError:
             print(othersUri, " is not online!")
     await server.wait_closed()
 
