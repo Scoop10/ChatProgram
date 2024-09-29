@@ -69,7 +69,7 @@ async def sendPrivateMessage(destSocket):
     # Create the AES Cipher object
     cipher = AES.new(AESkey, AES.MODE_GCM, nonce=iVect)
     encryptedChat, tag = cipher.encrypt_and_digest(serialisedChat.encode('utf-8'))
-    encodedChat = base64.b64encode(tag + encryptedChat).decode('utf-8')
+    encodedChat = base64.b64encode(encryptedChat + tag).decode('utf-8')
 
     ## APPEND THE REST OF THE SYMM_KEYS FOR THE PARTICIPANTS HERE ##
 
@@ -116,8 +116,8 @@ async def receivedPrivateChat(receivedRequest):
     if forMe:
         receivedEncodedChat = receivedData["chat"]
         receivedDecodedChat = base64.b64decode(receivedEncodedChat)
-        receivedTag = receivedDecodedChat[:16]
-        strippedReceivedDecodedChat = receivedDecodedChat[16:]
+        receivedTag = receivedDecodedChat[-16:]
+        strippedReceivedDecodedChat = receivedDecodedChat[:-16]
                 
         decipher = AES.new(receivedAESKey, AES.MODE_GCM, nonce=iVect)
         decryptedReceivedChat = decipher.decrypt_and_verify(strippedReceivedDecodedChat, receivedTag)
