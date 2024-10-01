@@ -3,6 +3,8 @@ import websockets
 import asyncio
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
+from Crypto.Signature import pss
+from Crypto.Hash import SHA256
 from Crypto.Random import get_random_bytes
 import hashlib
 import base64
@@ -83,11 +85,21 @@ async def sendPrivateMessage(destSocket):
         "chat": encodedChat
     }
 
+    jsonData = json.dumps(data)
+
+    signatureBase = jsonData + str(counters[0][1])
+
+    hashedSignatureBase = SHA256.new(signatureBase.encode())
+
+    unencodedSignature = pss.new(myPrivateKey).sign(hashedSignatureBase)
+
+    signature = base64.b64encode(unencodedSignature).decode()
+
     request = {
         "type":"signed_data",
         "data": data,
         "counter": counters[0][1],
-        "signature":"coming"
+        "signature":signature
     }
 
     # Serialise the request int JSON formatted string
@@ -141,16 +153,29 @@ async def sendPublicMessage(destSocket):
     print("Enter message to send publicly: ")
     # Receive input from the user
     message = input()
+
+    data = {
+        "type": "public_chat",
+        "sender": myFingerprint,
+        "message": message
+    }
+
+    jsonData = json.dumps(data)
+
+    signatureBase = jsonData + str(counters[0][1])
+
+    hashedSignatureBase = SHA256.new(signatureBase.encode())
+
+    unencodedSignature = pss.new(myPrivateKey).sign(hashedSignatureBase)
+
+    signature = base64.b64encode(unencodedSignature).decode()
+
     # Request packaging
     request = {
         "type":"signed_data",
-        "data": {
-                "type": "public_chat",
-                "sender": myFingerprint,
-                "message": message
-            },
+        "data": data,
         "counter": counters[0][1],
-        "signature":"coming"
+        "signature":signature
     }
 
     # Serialise request into JSON formatted string
@@ -174,15 +199,28 @@ async def getClientList(activeSocket):
 # This function is called when the client to the specified server
 async def sendHelloMessage(activeSocket):
     counters[0][1] += 1
+
+    data = {
+        "type" : "hello",
+        "public_key" : exportedPublicKey.decode('utf-8')
+    }
+
+    jsonData = json.dumps(data)
+
+    signatureBase = jsonData + str(counters[0][1])
+
+    hashedSignatureBase = SHA256.new(signatureBase.encode())
+
+    unencodedSignature = pss.new(myPrivateKey).sign(hashedSignatureBase)
+
+    signature = base64.b64encode(unencodedSignature).decode()
     # Request packaging as per specification
+    
     request = {
         "type":"signed_data",
-        "data": {
-            "type" : "hello",
-            "public_key" : exportedPublicKey.decode('utf-8')
-        },
+        "data": data,
         "counter": counters[0][1],
-        "signature":"coming" # NEEDS IMPLEMENTATION
+        "signature":signature
     }
 
     # Serialise request into JSON formatted string
@@ -190,6 +228,30 @@ async def sendHelloMessage(activeSocket):
     # Schedule serialised request to be sent to everyone via the server
     await activeSocket.send(serialisedRequest)
 
+async def checkSignature(sentSignature, senderIndex, data, counter):
+    try:
+        unencodedSignature = base64.b64decode(sentSignature)
+        senderPublicKey = connectedClients[senderIndex]
+        verifier = pss.new(senderPublicKey)
+
+        jsonData = json.dumps(data)
+
+        signatureBase = jsonData + str(counter)
+
+        hashedSignatureBase = SHA256.new(signatureBase.encode())
+        
+        try:
+            verifier.verify(hashedSignatureBase, unencodedSignature)
+            print("The signature is authentic.")
+            return True
+        except (ValueError, TypeError):
+            print("The signature is not authentic.")
+            return False
+        
+
+    except Exception:
+        print("Exception on signature check!")
+    
 # This function runs as a continual process to receive messages over the server to client connection
 # The function is the main handler of all incoming messages and calls the relevant functions whenever a message is received
 # websocket is the open socket which is connected to the server. stop_event is an Asyncio event which is set to true when the server disconnects
@@ -235,6 +297,7 @@ async def receiveMessages(websocket, stop_event):
                 # Update the fingerprints to match the current connected clients list
             # Else if the received message is signed_data
             elif responseMessage["type"] == "signed_data":
+                messageSignature = responseMessage["signature"]
                 # Extract the data portion of the message
                 data = responseMessage["data"]
                 # Extract the type from the data to see what type of signed_data it is
@@ -279,6 +342,13 @@ async def receiveMessages(websocket, stop_event):
                                     continue
                                 # Set the fingerprints counter to be the latest sent counter from that fingerprint
                                 counters[counterIndex] = (senderFingerprint, senderCounter)
+
+                            verified = await asyncio.gather(checkSignature(messageSignature, senderIndex, data, senderCounter))
+
+                            if not verified:
+                                print("An unverified sender is trying to contact you. Their message has been dismissed as this may be unsafe. ")
+                                continue
+
                             print("Received a private message from ", senderFingerprint, ". They said: ")
                             print(privateMessage)
                         # If the fingerprint doesn't exist in the clients fingerprints list
@@ -290,6 +360,7 @@ async def receiveMessages(websocket, stop_event):
                         continue                    
                 # Else if the received message is a public chat message
                 elif type == "public_chat":
+                    messageSignature = responseMessage["signature"]
                     # Get the senders fingerprint from the data
                     senderFingerprint = data["sender"]
                     # CHECK IF CLIENT HAS A FINGERPRINT STORED THAT MATCHES THE SENDER #
@@ -321,11 +392,18 @@ async def receiveMessages(websocket, stop_event):
                                 continue
                             # Set the fingerprints counter to be the latest sent counter from that fingerprint
                             counters[counterIndex] = (senderFingerprint, senderCounter)
+
+                        verified = await asyncio.gather(checkSignature(messageSignature, senderIndex, data, senderCounter))
+
+                        if not verified:
+                            print("An unverified sender is trying to contact you. Their message has been dismissed as this may be unsafe. ")
+                            continue
                     # If the fingerprint doesn't exist in the clients fingerprints list
                     except ValueError:
                         # Print a warning that someone unknown to you is trying to contact you
                             print("An unknown sender is trying to contact you. There message has been dismissed as this may be unsafe.")
                             continue
+                        
                     
                     # TEMPORARY CONFIRMATION - THIS NEEDS TO BE FORMATTED BETTER
                     print("Public message received from: ", data["sender"], " They said: ")
@@ -357,7 +435,7 @@ async def getUserInput(stop_event):
         # This is just to make sure that the "Waiting for user input: " line is printed after a response is received. ## THIS NEEDS SOME MORE THOUGHT ##
         await asyncio.sleep(0.5)
         # Set userInput to be user input. This run_in_executor is what runs the input function in a non-blocking way
-        userInput = await loop.run_in_executor(None, input, "Waiting for user input: ")
+        userInput = await loop.run_in_executor(None, input, "Waiting for user input: \nInputs are: \n   - 'Who's online?'\n   - 'Send a public message'\n   - 'Send a private message'\n   - 'Sign off'\n")
         # Yield is just a fancy return
         yield userInput
 
