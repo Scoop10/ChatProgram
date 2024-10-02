@@ -4,6 +4,9 @@ from Crypto.PublicKey import RSA
 import asyncio
 import ssl
 
+# Group 19
+# Reilly Hollamby, Natasha Robinson, Chris Sheridan, Aaraon Van Der Hoek
+
 # This function is called when a hello message is received from a client
 # It checks if the client who sent the hello is in the currently connected clients list.
 # If not it adds the clients socket to the socket list and the clients public key to the connected clients list

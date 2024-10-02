@@ -11,6 +11,9 @@ import base64
 import traceback
 import ssl
 
+# Group 19
+# Reilly Hollamby, Natasha Robinson, Chris Sheridan, Aaraon Van Der Hoek
+
 # This function will be called when the user types "Send a private message"
 # The function will take a list of participants from the command line and a message and broadcast it to the server and in turn all clients.
 # clientKey is this clients exported RSA key, destSocket is the socket that the client is connected on and sending the message to
