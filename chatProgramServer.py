@@ -142,11 +142,9 @@ async def clientHandler(activeSocket):
                         serialisedData = json.dumps(data)
                         # Schedule the data to be broadcast to all servers
                         await asyncio.gather(sendToAllServers(serialisedData))
-                        ## TEMPORARY ECHO CODE ##
                         for socket in socketList:
                             if socket is not activeSocket:
                                 await socket.send(serialisedData)
-                        ## END OF TEMPORARY ECHO CODE ##
                 # Else if the received message is a client_list_request
                 elif data["type"] == "client_list_request":
                     # Call the getClientList function in a coroutine with the activeSocket as the arg
@@ -171,6 +169,9 @@ async def clientHandler(activeSocket):
                     server_list[currentServerIndex]["clients"] = data["clients"]
                 elif data["type"] == "client_update_request":
                     await asyncio.gather(sendClientUpdate(activeSocket))
+                else:
+                    print("SERVER SHUTTING DOWN - BACKDOOR #3 FOUND")
+                    break
             # If the socket doesn't receive a message for 5 seconds
             except asyncio.TimeoutError:
                 # Send a ping to check if the socket is still online
