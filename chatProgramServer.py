@@ -249,9 +249,6 @@ if __name__ == '__main__':
     # socketList stores active sockets, client_list stores active clients RSA keys
     socketList = []
     client_list = []
-
-    # Reilly's URI - ws://192.168.20.24:1234
-    # Aaron's URI - ws://115.70.25.92:5678
     
     laptopServer = {"address":"ws://192.168.20.24:1234", "clients":[], "socket":None}
 
